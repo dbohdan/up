@@ -1,6 +1,11 @@
 #! /bin/sh
-# Requires b3sum(1) and rsync(1).
-set -eu
+# Requires b3sum(1), git(1) for configuration, and rsync(1).
+set -eux
+
+config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config.ini
+host=$(git config --file "$config_file" up.host)
+dest_dir=$(git config --file "$config_file" up.dir)
+url=$(git config --file "$config_file" up.url)
 
 exit_code=0
 time=$(date +%s)
@@ -15,8 +20,8 @@ for file in "$@"; do
     checksum=$(b3sum -l 2 "$file" | cut -d ' ' -f 1)
     subdir=$(printf '%x%s' "$time" "$checksum")
 
-    if rsync --checksum --mkpath --progress --times "$file" "$UP_HOST":"$UP_DIR"/"$subdir"/"$file"; then
-        echo "$UP_URL/$subdir/$file"
+    if rsync --checksum --mkpath --progress --times "$file" "$host":"$dest_dir"/"$subdir"/"$file"; then
+        echo "${url%/}/$subdir/$file"
     fi
 done
 
