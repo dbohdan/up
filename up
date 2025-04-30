@@ -1,0 +1,23 @@
+#! /bin/sh
+# Requires b3sum(1) and rsync(1).
+set -eu
+
+exit_code=0
+time=$(date +%s)
+
+for file in "$@"; do
+    if ! [ -f "$file" ]; then
+        echo 'up: cannot access file:' "$file" >&2
+        exit_code=1
+        continue
+    fi
+
+    checksum=$(b3sum -l 2 "$file" | cut -d ' ' -f 1)
+    subdir=$(printf '%x%s' "$time" "$checksum")
+
+    if rsync --checksum --mkpath --progress --times "$file" "$UP_HOST":"$UP_DIR"/"$subdir"/"$file"; then
+        echo "$UP_URL/$subdir/$file"
+    fi
+done
+
+exit "$exit_code"
