@@ -1,49 +1,99 @@
-#! /bin/sh
+#! /usr/bin/env python3
 # File upload script.
 #
 # Copyright (c) 2025 D. Bohdan
-# License: MIT
+# MIT License
 #
-# Requires git(1) for configuration, jq(1), rsync(1), and sha256sum(1).
-set -eu
+# Requires Python 3.11 and rsync(1).
 
-me=$(basename "$0")
-config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config
+import argparse
+import os
+import secrets
+import shlex
+import subprocess as sp
+import sys
+import time
+import tomllib
+import urllib.parse
+from pathlib import Path
 
-if ! [ -f "$config_file" ]; then
-    echo "$me: config file not found at $config_file" >&2
-    exit 1
-fi
-host=$(git config --file "$config_file" up.host)
-dest_dir=$(git config --file "$config_file" up.dir)
-url=$(git config --file "$config_file" up.url)
 
-exit_code=0
-file_urls=
-random=$(dd if=/dev/random bs=64 count=1 2>/dev/null | sha256sum | cut -c -4)
-subdir=$(printf '%x%s' "$(date +%s)" "$random")
+def log_error(message: str) -> None:
+    me = Path(sys.argv[0]).name
+    print(f"{me}: error: {message}", file=sys.stderr)
 
-for file in "$@"; do
-    if ! [ -f "$file" ]; then
-        echo "$me: bad file: $file" >&2
-        exit_code=1
-        continue
-    fi
 
-    basename=$(basename "$file")
-    file_urls="$file_urls
-${url%/}/$subdir/$(echo "$basename" | jq -R -r @uri)"
-done
+def main():
+    parser = argparse.ArgumentParser(description="Upload files and print their URLs.")
+    parser.add_argument("files", metavar="file", nargs="+", help="files to upload")
+    args = parser.parse_args()
 
-if [ "$exit_code" -ne 0 ]; then
-    exit "$exit_code"
-fi
+    # Parse the config file.
+    config_home = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+    config_file = Path(config_home) / "up" / "config.toml"
 
-rsync \
-    --checksum \
-    --mkpath \
-    --progress \
-    --times \
-    "$@" \
-    "$host:$dest_dir/$subdir/" &&
-    echo "$file_urls"
+    if not config_file.is_file():
+        log_error(
+            "config file not found at " + shlex.quote(str(config_file)),
+        )
+        sys.exit(1)
+
+    with config_file.open("rb") as f:
+        config = tomllib.load(f)
+    try:
+        host = config["host"]
+        dest_dir = config["dir"]
+        base_url = config["url"].rstrip("/")
+    except KeyError as e:
+        log_error(f"key missing in config: {e}")
+        sys.exit(1)
+
+    # Generate a unique subdirectory name.
+    timestamp = time.time_ns() // 1_000_000_000
+    random_hex = secrets.token_hex(2)  # Four hex characters.
+    subdir = f"{timestamp:x}{random_hex}"
+
+    # Validate files and prepare URLs.
+    file_urls = []
+    success = True
+    for file_path_str in args.files:
+        file_path = Path(file_path_str)
+        if not file_path.is_file():
+            log_error(f"bad file: {file_path_str}")
+            success = False
+            continue
+
+        encoded_basename = urllib.parse.quote(file_path.name, safe="")
+        file_urls.append(f"{base_url}/{subdir}/{encoded_basename}")
+
+    if not success:
+        sys.exit(1)
+
+    # Construct an rsync command and run rsync.
+    destination = f"{host}:{Path(dest_dir) / subdir}/"
+    rsync_cmd = [
+        "rsync",
+        "--checksum",
+        "--mkpath",
+        "--progress",
+        "--times",
+        *args.files,
+        destination,
+    ]
+
+    rsync_result = sp.run(
+        rsync_cmd,
+        check=False,
+        capture_output=False,
+    )
+
+    # Print URLs if rsync succeeded.
+    if rsync_result.returncode == 0:
+        print("\n".join(file_urls))
+    else:
+        log_error(f"rsync failed with exit code {rsync_result.returncode}")
+        sys.exit(rsync_result.returncode)
+
+
+if __name__ == "__main__":
+    main()
