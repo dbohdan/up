@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
-# File upload script.
+# Upload files to your server using rsync and get their public URLs.
+# https://github.com/dbohdan/up
 #
 # Copyright (c) 2025 D. Bohdan
 # MIT License
@@ -21,6 +22,25 @@ from pathlib import Path
 def log_error(message: str) -> None:
     me = Path(sys.argv[0]).name
     print(f"{me}: error: {message}", file=sys.stderr)
+
+
+def base32_crockford(a: int) -> str:
+    alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
+    result = []
+
+    while a > 0:
+        result.append(alphabet[a % 32])
+        a //= 32
+
+    return "".join(result[::-1])
+
+
+def random_name() -> str:
+    """Generate a unique subdirectory name."""
+    timestamp = time.time_ns() // 1_000_000_000
+    random = secrets.randbits(25)  # Five base32 characters.
+
+    return f"{base32_crockford(timestamp)}-{base32_crockford(random):>05s}"
 
 
 def main():
@@ -48,13 +68,9 @@ def main():
         log_error(f"key missing in config: {e}")
         sys.exit(1)
 
-    # Generate a unique subdirectory name.
-    timestamp = time.time_ns() // 1_000_000_000
-    random_hex = secrets.token_hex(2)  # Four hex characters.
-    subdir = f"{timestamp:x}{random_hex}"
-
     # Validate files and prepare URLs.
     file_urls = []
+    subdir = random_name()
     success = True
     for file_path_str in args.files:
         file_path = Path(file_path_str)
