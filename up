@@ -21,14 +21,16 @@ for file in "$@"; do
         continue
     fi
 
+    basename=$(basename "$file")
+
     if rsync \
         --checksum \
         --mkpath \
         --progress \
         --times \
         "$file" \
-        "$host":"$dest_dir"/"$subdir"/"$file"; then
-        echo "${url%/}/$subdir/$file"
+        "$host":"$dest_dir"/"$subdir"/"$basename"; then
+        echo "${url%/}/$subdir/$basename"
     fi
 done
 
