@@ -1,7 +1,7 @@
 #! /bin/sh
 # Copyright (c) 2025 D. Bohdan
 # License: MIT
-# Requires git(1) for configuration, rsync(1), and sha256sum(1).
+# Requires git(1) for configuration and rsync(1).
 set -eu
 
 me=$(basename "$0")
@@ -12,8 +12,7 @@ dest_dir=$(git config --file "$config_file" up.dir)
 url=$(git config --file "$config_file" up.url)
 
 exit_code=0
-random=$(dd if=/dev/random count=1 2>/dev/null | sha256sum | cut -c -2)
-subdir=$(printf '%x%s' "$(date +%s)" "$random")
+subdir=$(printf '%x' "$(date +%s)")
 
 for file in "$@"; do
     if ! [ -f "$file" ]; then
