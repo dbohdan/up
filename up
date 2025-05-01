@@ -8,7 +8,7 @@ me=$(basename "$0")
 config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config
 
 if ! [ -f "$config_file" ]; then
-    printf '%s: config file not found at %s\n' "$me" "$config_file" >&2
+    echo "$me: config file not found at $config_file" >&2
     exit 1
 fi
 host=$(git config --file "$config_file" up.host)
@@ -20,7 +20,7 @@ subdir=$(printf '%x' "$(date +%s)")
 
 for file in "$@"; do
     if ! [ -f "$file" ]; then
-        printf '%s: bad file: %s\n' "$me" "$file" >&2
+        echo "$me: bad file: $file" >&2
         exit_code=1
         continue
     fi
@@ -33,7 +33,7 @@ for file in "$@"; do
         --progress \
         --times \
         "$file" \
-        "$host":"$dest_dir"/"$subdir"/"$basename"; then
+        "$host:$dest_dir/$subdir/$basename"; then
         echo "${url%/}/$subdir/$basename"
     fi
 done
