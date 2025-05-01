@@ -1,14 +1,17 @@
 #! /bin/sh
-# Requires b3sum(1), git(1) for configuration, and rsync(1).
-set -eux
+# Copyright (c) 2025 D. Bohdan
+# License: MIT
+# Requires git(1) for configuration, rsync(1), and sha256sum(1).
+set -eu
 
-config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config.ini
+config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config
 host=$(git config --file "$config_file" up.host)
 dest_dir=$(git config --file "$config_file" up.dir)
 url=$(git config --file "$config_file" up.url)
 
 exit_code=0
-time=$(date +%s)
+random=$(dd if=/dev/random count=1 2>/dev/null | sha256sum | cut -c -2)
+subdir=$(printf '%x%s' "$(date +%s)" "$random")
 
 for file in "$@"; do
     if ! [ -f "$file" ]; then
@@ -16,9 +19,6 @@ for file in "$@"; do
         exit_code=1
         continue
     fi
-
-    checksum=$(b3sum -l 2 "$file" | cut -d ' ' -f 1)
-    subdir=$(printf '%x%s' "$time" "$checksum")
 
     if rsync --checksum --mkpath --progress --times "$file" "$host":"$dest_dir"/"$subdir"/"$file"; then
         echo "${url%/}/$subdir/$file"
