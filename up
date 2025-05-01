@@ -1,6 +1,9 @@
 #! /bin/sh
+# File upload script.
+#
 # Copyright (c) 2025 D. Bohdan
 # License: MIT
+#
 # Requires git(1) for configuration, jq(1), and rsync(1).
 set -eu
 
@@ -16,6 +19,7 @@ dest_dir=$(git config --file "$config_file" up.dir)
 url=$(git config --file "$config_file" up.url)
 
 exit_code=0
+file_urls=
 subdir=$(printf '%x' "$(date +%s)")
 
 for file in "$@"; do
@@ -26,16 +30,19 @@ for file in "$@"; do
     fi
 
     basename=$(basename "$file")
-
-    if rsync \
-        --checksum \
-        --mkpath \
-        --progress \
-        --times \
-        "$file" \
-        "$host:$dest_dir/$subdir/$basename"; then
-        echo "${url%/}/$subdir/$(echo "$basename" | jq -R -r @uri)"
-    fi
+    file_urls="$file_urls
+${url%/}/$subdir/$(echo "$basename" | jq -R -r @uri)"
 done
 
-exit "$exit_code"
+if [ "$exit_code" -ne 0 ]; then
+    exit "$exit_code"
+fi
+
+rsync \
+    --checksum \
+    --mkpath \
+    --progress \
+    --times \
+    "$@" \
+    "$host:$dest_dir/$subdir/" &&
+    echo "$file_urls"
