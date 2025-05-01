@@ -5,8 +5,12 @@
 set -eu
 
 me=$(basename "$0")
-
 config_file=${XDG_CONFIG_HOME:-$HOME/.config}/up/config
+
+if ! [ -f "$config_file" ]; then
+    printf '%s: config file not found at %s\n' "$me" "$config_file" >&2
+    exit 1
+fi
 host=$(git config --file "$config_file" up.host)
 dest_dir=$(git config --file "$config_file" up.dir)
 url=$(git config --file "$config_file" up.url)
