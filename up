@@ -4,7 +4,7 @@
 # Copyright (c) 2025 D. Bohdan
 # License: MIT
 #
-# Requires git(1) for configuration, jq(1), and rsync(1).
+# Requires git(1) for configuration, jq(1), rsync(1), and sha256sum(1).
 set -eu
 
 me=$(basename "$0")
@@ -20,7 +20,8 @@ url=$(git config --file "$config_file" up.url)
 
 exit_code=0
 file_urls=
-subdir=$(printf '%x' "$(date +%s)")
+random=$(dd if=/dev/random bs=64 count=1 2>/dev/null | sha256sum | cut -c -4)
+subdir=$(printf '%x%s' "$(date +%s)" "$random")
 
 for file in "$@"; do
     if ! [ -f "$file" ]; then
