@@ -90,6 +90,8 @@ def main():
     rsync_cmd = [
         "rsync",
         "--checksum",
+        "--chmod",
+        "0644",
         "--mkpath",
         "--progress",
         "--times",
