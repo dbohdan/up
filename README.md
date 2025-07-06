@@ -37,10 +37,10 @@ Files uploaded simultaneously go in the same directory.
 # Install for the current user.
 # You may need to add `~/.local/bin/` to your `PATH`.
 mkdir -p ~/.local/bin/
-install up ~/.local/bin/
+install up.py ~/.local/bin/up
 
 # Or install for all users (replace `sudo` as necessary):
-sudo install up /usr/local/bin/
+sudo install up.py /usr/local/bin/up
 ```
 
 ## Configuration
