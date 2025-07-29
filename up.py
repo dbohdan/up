@@ -9,6 +9,7 @@
 
 import argparse
 import os
+import re
 import secrets
 import shlex
 import subprocess as sp
@@ -17,6 +18,16 @@ import time
 import tomllib
 import urllib.parse
 from pathlib import Path
+
+RSYNC_COMMAND_PREFIX = (
+    "rsync",
+    "--checksum",
+    "--chmod",
+    "0644",
+    "--mkpath",
+    "--progress",
+    "--times",
+)
 
 
 def log_error(message: str) -> None:
@@ -43,6 +54,12 @@ def random_name() -> str:
     return f"{base32_crockford(timestamp)}-{base32_crockford(random):>05s}"
 
 
+def slug(s: str) -> str:
+    s = s.lower()
+    s = re.sub(r"[^A-Za-z0-9._~+-]+", "-", s)
+    return s.strip("-")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload files and print their URLs.")
     parser.add_argument("files", metavar="file", nargs="+", help="files to upload")
@@ -62,16 +79,17 @@ def main():
         config = tomllib.load(f)
     try:
         base_url = config["base_url"].rstrip("/")
-        dest_dir = config["dest_dir"]
+        dest_dir = Path(config["dest_dir"])
         target_host = config["target_host"]
     except KeyError as e:
         log_error(f"key missing in config: {e}")
         sys.exit(1)
 
-    # Validate files and prepare URLs.
-    file_urls = []
-    subdir = random_name()
     success = True
+    subdir = dest_dir / random_name()
+
+    # rsync one file at a time.
+    # This is slower but allows us to generate custom remote filenames.
     for file_path_str in args.files:
         file_path = Path(file_path_str)
         if not file_path.is_file():
@@ -79,38 +97,31 @@ def main():
             success = False
             continue
 
-        encoded_basename = urllib.parse.quote(file_path.name, safe="")
-        file_urls.append(f"{base_url}/{subdir}/{encoded_basename}")
+        remote_basename = urllib.parse.quote(slug(file_path.name), safe="")
+
+        rsync_command = (
+            *RSYNC_COMMAND_PREFIX,
+            file_path,
+            f"{target_host}:{subdir}/{remote_basename}",
+        )
+        rsync_result = sp.run(
+            rsync_command,
+            check=False,
+            capture_output=False,
+        )
+
+        # Print the URL if rsync is successful; print the exit code if it isn't.
+        if rsync_result.returncode == 0:
+            print(f"{base_url}/{subdir.name}/{remote_basename}")
+        else:
+            log_error(
+                f"rsync failed with exit code {rsync_result.returncode} "
+                f"for {file_path_str!r}",
+            )
+            success = False
 
     if not success:
         sys.exit(1)
-
-    # Construct an rsync command and run rsync.
-    destination = f"{target_host}:{Path(dest_dir) / subdir}/"
-    rsync_cmd = [
-        "rsync",
-        "--checksum",
-        "--chmod",
-        "0644",
-        "--mkpath",
-        "--progress",
-        "--times",
-        *args.files,
-        destination,
-    ]
-
-    rsync_result = sp.run(
-        rsync_cmd,
-        check=False,
-        capture_output=False,
-    )
-
-    # Print URLs if rsync succeeded.
-    if rsync_result.returncode == 0:
-        print("\n".join(file_urls))
-    else:
-        log_error(f"rsync failed with exit code {rsync_result.returncode}")
-        sys.exit(rsync_result.returncode)
 
 
 if __name__ == "__main__":
