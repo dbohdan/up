@@ -87,6 +87,7 @@ def main():
 
     success = True
     subdir = dest_dir / random_name()
+    urls = []
 
     # rsync one file at a time.
     # This is slower but allows us to generate custom remote filenames.
@@ -110,9 +111,9 @@ def main():
             capture_output=False,
         )
 
-        # Print the URL if rsync is successful; print the exit code if it isn't.
+        # Store the URL if rsync is successful; print the exit code if it isn't.
         if rsync_result.returncode == 0:
-            print(f"{base_url}/{subdir.name}/{remote_basename}")
+            urls.append(f"{base_url}/{subdir.name}/{remote_basename}")
         else:
             log_error(
                 f"rsync failed with exit code {rsync_result.returncode} "
@@ -120,6 +121,7 @@ def main():
             )
             success = False
 
+    print("\n".join(urls))
     if not success:
         sys.exit(1)
 
