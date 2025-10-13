@@ -52,19 +52,19 @@ If the configuration file is missing, the program will exit with an error messag
 ### Example
 
 ```toml
-target_host = "example.com"
-dest_dir = "/var/www/paste.example.com/"
-base_url = "https://paste.example.com/"
+target-host = "example.com"
+dest-dir = "/var/www/paste.example.com/"
+base-url = "https://paste.example.com/"
 ```
 
 ### Keys
 
-- `target_host`:
+- `target-host`:
   The remote server host for rsync.
-- `dest_dir`:
+- `dest-dir`:
   The path to the destination directory on the remote server where files will be uploaded.
   Subdirectories will be created in this directory.
-- `base_url`: The base URL corresponding to the remote `dest_dir`.
+- `base-url`: The base URL corresponding to the remote `dest-dir`.
   The URL is constructed by joining the base URL, the subdirectory, and the [percent-encoded](https://en.wikipedia.org/wiki/Percent-encoding) filename with a forward slash.
 
 ## Usage

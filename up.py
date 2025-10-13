@@ -17,7 +17,9 @@ import sys
 import time
 import tomllib
 import urllib.parse
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 RSYNC_COMMAND_PREFIX = (
     "rsync",
@@ -28,6 +30,41 @@ RSYNC_COMMAND_PREFIX = (
     "--progress",
     "--times",
 )
+
+
+@dataclass(frozen=True)
+class Config:
+    base_url: str
+    dest_dir: Path
+    target_host: str
+
+    @classmethod
+    def load_config(cls) -> Self:
+        # Parse the config file.
+        config_home = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        config_file = Path(config_home) / "up" / "config.toml"
+
+        if not config_file.is_file():
+            log_error(
+                "config file not found at " + shlex.quote(str(config_file)),
+            )
+            sys.exit(1)
+
+        with config_file.open("rb") as f:
+            config = tomllib.load(f)
+        try:
+            base_url = config["base-url"].rstrip("/")
+            dest_dir = Path(config["dest-dir"])
+            target_host = config["target-host"]
+        except KeyError as e:
+            log_error(f"key missing in config: {e}")
+            sys.exit(1)
+
+        return cls(
+            base_url=base_url,
+            dest_dir=dest_dir,
+            target_host=target_host,
+        )
 
 
 def log_error(message: str) -> None:
@@ -65,28 +102,10 @@ def main():
     parser.add_argument("files", metavar="file", nargs="+", help="files to upload")
     args = parser.parse_args()
 
-    # Parse the config file.
-    config_home = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-    config_file = Path(config_home) / "up" / "config.toml"
-
-    if not config_file.is_file():
-        log_error(
-            "config file not found at " + shlex.quote(str(config_file)),
-        )
-        sys.exit(1)
-
-    with config_file.open("rb") as f:
-        config = tomllib.load(f)
-    try:
-        base_url = config["base_url"].rstrip("/")
-        dest_dir = Path(config["dest_dir"])
-        target_host = config["target_host"]
-    except KeyError as e:
-        log_error(f"key missing in config: {e}")
-        sys.exit(1)
+    config = Config.load_config()
 
     success = True
-    subdir = dest_dir / random_name()
+    subdir = config.dest_dir / random_name()
     urls = []
 
     # rsync one file at a time.
@@ -103,7 +122,7 @@ def main():
         rsync_command = (
             *RSYNC_COMMAND_PREFIX,
             file_path,
-            f"{target_host}:{subdir}/{remote_basename}",
+            f"{config.target_host}:{subdir}/{remote_basename}",
         )
         rsync_result = sp.run(
             rsync_command,
@@ -113,7 +132,7 @@ def main():
 
         # Store the URL if rsync is successful; print the exit code if it isn't.
         if rsync_result.returncode == 0:
-            urls.append(f"{base_url}/{subdir.name}/{remote_basename}")
+            urls.append(f"{config.base_url}/{subdir.name}/{remote_basename}")
         else:
             log_error(
                 f"rsync failed with exit code {rsync_result.returncode} "
