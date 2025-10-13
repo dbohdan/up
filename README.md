@@ -1,6 +1,6 @@
 # up
 
-**up** is a short Python script for sharing files with others.
+**up** is a small Python script for sharing files with others.
 The script uploads files to a remote server and prints the files' public URLs.
 Files are uploaded to the server using [sftp(1)](https://man.openbsd.org/sftp.1).
 
@@ -27,7 +27,7 @@ Files uploaded simultaneously go in the same directory.
 ## Requirements
 
 - Python 3.11 or later for [tomllib](https://docs.python.org/3/library/tomllib.html)
-- sftp(1) (part of OpenSSH)
+- sftp (part of OpenSSH)
 - Optional: [ExifTool](https://exiftool.org/) for metadata removal
 - A remote machine with:
     - An SSH server
@@ -63,7 +63,7 @@ base-url = "https://paste.example.com/"
 ### Keys
 
 - `target-host`:
-  The remote server host for rsync.
+  The remote server host for sftp.
 - `dest-dir`:
   The path to the destination directory on the remote server where files will be uploaded.
   Subdirectories will be created in this directory.
@@ -90,6 +90,24 @@ options:
                         if empty
   -s, --strip-exif      strip Exif metadata with ExifTool
 ```
+
+### Filename slugification
+
+By default, `up` converts filenames to URL-friendly [slugs](https://en.wikipedia.org/wiki/Clean_URL#Slug):
+
+- Converts to lowercase
+- Replaces non-alphanumeric characters (except `.`, `_`, `~`, `+`, `-`) with hyphens
+- Trims leading and trailing hyphens
+
+Use `-S`/`--no-slug` to disable this behavior and preserve original filenames or `-f`/`--filename` to use custom filenames.
+
+### Exif metadata removal
+
+When using the `-s`/`--strip-exif` option:
+- Files are copied to a temporary directory
+- ExifTool removes all metadata
+- The cleaned files are uploaded
+- The temporary directory is automatically removed
 
 ## Server setup
 
