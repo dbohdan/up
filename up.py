@@ -113,18 +113,18 @@ def main():
         help="files to upload",
     )
     parser.add_argument(
+        "-S",
+        "--no-slug",
+        action="store_true",
+        help="do not slugify filenames",
+    )
+    parser.add_argument(
         "-f",
         "--filename",
         metavar="<filename>",
         action="append",
         default=[],
-        help="override one filename (use once per file)",
-    )
-    parser.add_argument(
-        "-s",
-        "--strip-exif",
-        action="store_true",
-        help="strip Exif metadata",
+        help="override filename (one use is one file in order)",
     )
     parser.add_argument(
         "-p",
@@ -132,6 +132,12 @@ def main():
         metavar="<perms>",
         default="0644",
         help="set file permissions (%(default)r by default); skip chmod if empty",
+    )
+    parser.add_argument(
+        "-s",
+        "--strip-exif",
+        action="store_true",
+        help="strip Exif metadata with ExifTool",
     )
     args = parser.parse_args()
 
@@ -176,7 +182,12 @@ def main():
     for i, file_path in enumerate(files_to_upload):
         file_path_quoted = shlex.quote(str(file_path))
 
-        basename = args.filename[i] if i < len(args.filename) else slug(file_path.name)
+        if i < len(args.filename):
+            basename = args.filename[i]
+        elif args.no_slug:
+            basename = file_path.name
+        else:
+            basename = slug(file_path.name)
         basename_quoted = shlex.quote(basename)
 
         batch.append(f"put {file_path_quoted} {basename_quoted}")

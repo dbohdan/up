@@ -73,7 +73,7 @@ base-url = "https://paste.example.com/"
 ## Usage
 
 ```none
-usage: up [-h] [-f <filename>] [-s] [-p <perms>] file [file ...]
+usage: up [-h] [-S] [-f <filename>] [-p <perms>] [-s] file [file ...]
 
 Upload files and print their URLs.
 
@@ -82,12 +82,13 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  -S, --no-slug         do not slugify filenames
   -f <filename>, --filename <filename>
-                        override one filename (use once per file)
-  -s, --strip-exif      strip Exif metadata
+                        override filename (one use is one file in order)
   -p <perms>, --permissions <perms>
                         set file permissions ('0644' by default); skip chmod
                         if empty
+  -s, --strip-exif      strip Exif metadata with ExifTool
 ```
 
 ## Server setup
