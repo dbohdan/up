@@ -97,6 +97,14 @@ def main():
         help="files to upload",
     )
     parser.add_argument(
+        "-f",
+        "--filename",
+        metavar="<filename>",
+        action="append",
+        default=[],
+        help="override one filename (use once per file)",
+    )
+    parser.add_argument(
         "-p",
         "--permissions",
         metavar="<perms>",
@@ -104,6 +112,12 @@ def main():
         help="set file permissions (%(default)r by default); skip chmod if empty",
     )
     args = parser.parse_args()
+
+    # Validate the number of names.
+    if len(args.filename) > len(args.files):
+        parser.error(
+            f"too many names: {len(args.filename)} names for {len(args.files)} files",
+        )
 
     config = Config.load_config()
 
@@ -130,17 +144,18 @@ def main():
     batch.append(f"mkdir {subdir_quoted}")
     batch.append(f"cd {subdir_quoted}")
 
-    for file_path in args.files:
+    for i, file_path in enumerate(args.files):
         file_path_quoted = shlex.quote(str(file_path))
-        basename_slug = slug(file_path.name)
 
-        basename_slug_quoted = shlex.quote(basename_slug)
-        batch.append(f"put {file_path_quoted} {basename_slug_quoted}")
+        basename = args.filename[i] if i < len(args.filename) else slug(file_path.name)
+        basename_quoted = shlex.quote(basename)
+
+        batch.append(f"put {file_path_quoted} {basename_quoted}")
         if args.permissions:
-            batch.append(f"chmod {args.permissions} {basename_slug_quoted}")
+            batch.append(f"chmod {args.permissions} {basename_quoted}")
 
-        basename_slug_url = urllib.parse.quote(slug(file_path.name), safe="")
-        urls.append(f"{config.base_url}/{subdir.name}/{basename_slug_url}")
+        basename_url = urllib.parse.quote(basename, safe="")
+        urls.append(f"{config.base_url}/{subdir.name}/{basename_url}")
 
     # Run sftp with the batchfile read from stdin.
     sftp_result = sp.run(
