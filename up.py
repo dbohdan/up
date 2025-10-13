@@ -1,11 +1,11 @@
 #! /usr/bin/env python3
-# Upload files to your server using rsync and get their public URLs.
+# Upload files to your server using sftp(1) and get their public URLs.
 # https://github.com/dbohdan/up
 #
 # Copyright (c) 2025 D. Bohdan
 # MIT License
 #
-# Requires Python 3.11 and rsync(1).
+# Requires Python 3.11 and sftp(1).
 
 import argparse
 import os
@@ -20,16 +20,6 @@ import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
-
-RSYNC_COMMAND_PREFIX = (
-    "rsync",
-    "--checksum",
-    "--chmod",
-    "0644",
-    "--mkpath",
-    "--progress",
-    "--times",
-)
 
 
 @dataclass(frozen=True)
@@ -99,50 +89,71 @@ def slug(s: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Upload files and print their URLs.")
-    parser.add_argument("files", metavar="file", nargs="+", help="files to upload")
+    parser.add_argument(
+        "files",
+        metavar="file",
+        nargs="+",
+        type=Path,
+        help="files to upload",
+    )
+    parser.add_argument(
+        "-p",
+        "--permissions",
+        metavar="<perms>",
+        default="0644",
+        help="set file permissions (%(default)r by default); skip chmod if empty",
+    )
     args = parser.parse_args()
 
     config = Config.load_config()
 
+    # Validate all files first by trying to open them.
     success = True
-    subdir = config.dest_dir / random_name()
-    urls = []
 
-    # rsync one file at a time.
-    # This is slower but allows us to generate custom remote filenames.
-    for file_path_str in args.files:
-        file_path = Path(file_path_str)
-        if not file_path.is_file():
-            log_error(f"bad file: {file_path_str}")
-            success = False
-            continue
-
-        remote_basename = urllib.parse.quote(slug(file_path.name), safe="")
-
-        rsync_command = (
-            *RSYNC_COMMAND_PREFIX,
-            file_path,
-            f"{config.target_host}:{subdir}/{remote_basename}",
-        )
-        rsync_result = sp.run(
-            rsync_command,
-            check=False,
-            capture_output=False,
-        )
-
-        # Store the URL if rsync is successful; print the exit code if it isn't.
-        if rsync_result.returncode == 0:
-            urls.append(f"{config.base_url}/{subdir.name}/{remote_basename}")
-        else:
-            log_error(
-                f"rsync failed with exit code {rsync_result.returncode} "
-                f"for {file_path_str!r}",
-            )
+    for file_path in args.files:
+        try:
+            with file_path.open("r"):
+                pass
+        except OSError:
+            log_error(f"cannot open for reading: {str(file_path)!r}")
             success = False
 
-    print("\n".join(urls))
     if not success:
         sys.exit(1)
+
+    # Compose a batchfile for sftp.
+    batch = []
+    urls = []
+    subdir = config.dest_dir / random_name()
+    subdir_quoted = shlex.quote(str(subdir))
+
+    batch.append(f"mkdir {subdir_quoted}")
+    batch.append(f"cd {subdir_quoted}")
+
+    for file_path in args.files:
+        file_path_quoted = shlex.quote(str(file_path))
+        basename_slug = slug(file_path.name)
+
+        basename_slug_quoted = shlex.quote(basename_slug)
+        batch.append(f"put {file_path_quoted} {basename_slug_quoted}")
+        if args.permissions:
+            batch.append(f"chmod {args.permissions} {basename_slug_quoted}")
+
+        basename_slug_url = urllib.parse.quote(slug(file_path.name), safe="")
+        urls.append(f"{config.base_url}/{subdir.name}/{basename_slug_url}")
+
+    # Run sftp with the batchfile read from stdin.
+    sftp_result = sp.run(
+        ["sftp", "-b", "-", "-p", config.target_host],
+        input="\n".join(batch).encode(),
+        check=False,
+    )
+
+    if sftp_result.returncode != 0:
+        log_error(f"sftp failed with exit code {sftp_result.returncode}")
+        sys.exit(1)
+
+    print("\n".join(urls))
 
 
 if __name__ == "__main__":

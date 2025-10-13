@@ -2,22 +2,24 @@
 
 **up** is a short Python script for sharing files with others.
 The script uploads files to a remote server and prints the files' public URLs.
-Files are uploaded to the server using rsync.
+Files are uploaded to the server using [sftp(1)](https://man.openbsd.org/sftp.1).
 
 Here is a typical use.
-We upload `systemrescue+zfs-11.02+2.2.6-amd64.iso` and `systemrescue+zfs-11.02+2.2.6-amd64.iso.sha256` and get a download URL for each file:
+We upload `systemrescue+zfs-12.00+2.3.1-amd64.iso` and `systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256` and get a download URL for each file:
 
 ```none
-$ up systemrescue+zfs-11.02+2.2.6-amd64.iso systemrescue+zfs-11.02+2.2.6-amd64.iso.sha256
-systemrescue+zfs-11.02+2.2.6-amd64.iso
-    995.098.624 100%    5,46MB/s    0:02:53 (xfr#1, to-chk=1/2)
-systemrescue+zfs-11.02+2.2.6-amd64.iso.sha256
-            105 100%    0,27kB/s    0:00:00 (xfr#2, to-chk=0/2)
-https://paste.example.com/1m17pnq-9bqsv/systemrescue%2Bzfs-11.02%2B2.2.6-amd64.iso
-https://paste.example.com/1m17pnq-9bqsv/systemrescue%2Bzfs-11.02%2B2.2.6-amd64.iso.sha256
+> up systemrescue+zfs-12.00+2.3.1-amd64.iso systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256
+sftp> mkdir /var/www/paste.example.com/1met8cf-7avwn
+sftp> cd /var/www/paste.example.com/1met8cf-7avwn
+sftp> put systemrescue+zfs-12.00+2.3.1-amd64.iso systemrescue+zfs-12.00+2.3.1-amd64.iso
+sftp> chmod 0644 systemrescue+zfs-12.00+2.3.1-amd64.iso
+sftp> put systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256 systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256
+sftp> chmod 0644 systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256
+https://paste.example.com/1met8cf-7avwn/systemrescue%2Bzfs-12.00%2B2.3.1-amd64.iso
+https://paste.example.com/1met8cf-7avwn/systemrescue%2Bzfs-12.00%2B2.3.1-amd64.iso.sha256
 ```
 
-The directory name `1m17pnq-9bqsv` consists of current [Unix time](https://en.wikipedia.org/wiki/Unix_time) in [Crockford's base32](https://en.wikipedia.org/wiki/Base32#Crockford's_Base32) and five random base32 digits (25 bits of randomness) to prevent guessing.
+The directory name `1met8cf-7avwn` consists of current [Unix time](https://en.wikipedia.org/wiki/Unix_time) in [Crockford's base32](https://en.wikipedia.org/wiki/Base32#Crockford's_Base32) and five random base32 digits (25 bits of randomness) to prevent guessing.
 Files uploaded simultaneously go in the same directory.
 
 (The files in this example are from [SystemRescue+ZFS](https://github.com/nchevsky/systemrescue-zfs).)
@@ -25,7 +27,7 @@ Files uploaded simultaneously go in the same directory.
 ## Requirements
 
 - Python 3.11 or later for [tomllib](https://docs.python.org/3/library/tomllib.html)
-- rsync 3.2.3 or later for `--mkpath`
+- sftp(1) (part of OpenSSH)
 - A remote machine with:
     - An SSH server
     - An HTTP server
@@ -70,15 +72,18 @@ base-url = "https://paste.example.com/"
 ## Usage
 
 ```none
-usage: up [-h] file [file ...]
+usage: up [-h] [-p <perms>] file [file ...]
 
 Upload files and print their URLs.
 
 positional arguments:
-  file        files to upload
+  file                  files to upload
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
+  -p <perms>, --permissions <perms>
+                        set file permissions ('0644' by default); skip chmod
+                        if empty
 ```
 
 ## Server setup
@@ -137,9 +142,9 @@ You can use tree(1) over SSH:
 ```none
 $ ssh -qt example.com 'tree -CDFt --timefmt "%Y-%m-%d %H:%M %Z" /var/www/paste.example.com/'
 [...]
-└── [2025-05-01 20:33 UTC]  1m17pnq-9bqsv/
-    ├── [2024-11-26 09:36 UTC]  systemrescue+zfs-11.02+2.2.6-amd64.iso
-    └── [2024-11-26 09:36 UTC]  systemrescue+zfs-11.02+2.2.6-amd64.iso.sha256
+└── [2025-10-13 15:58 UTC]  1met8cf-7avwn/
+    ├── [2025-06-11 21:51 UTC]  systemrescue+zfs-12.00+2.3.1-amd64.iso
+    └── [2025-06-11 21:51 UTC]  systemrescue+zfs-12.00+2.3.1-amd64.iso.sha256
 
 16 directories, 24 files
 ```
