@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# Upload files to your server using sftp(1) and get their public URLs.
+# Upload files to your server using SFTP and get their public URLs.
 # https://github.com/dbohdan/up
 #
 # Copyright (c) 2025 D. Bohdan
@@ -103,7 +103,7 @@ def copy_and_strip_exif(src: Path, dest_dir: Path) -> Path:
     return dest
 
 
-def main():
+def cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Upload files and print their URLs.")
     parser.add_argument(
         "files",
@@ -147,6 +147,11 @@ def main():
             f"too many names: {len(args.filename)} names for {len(args.files)} files",
         )
 
+    return args
+
+
+def main():
+    args = cli()
     config = Config.load_config()
 
     # Validate all files first by trying to open them.
