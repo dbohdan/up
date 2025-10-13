@@ -12,8 +12,10 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import subprocess as sp
 import sys
+import tempfile
 import time
 import tomllib
 import urllib.parse
@@ -87,6 +89,20 @@ def slug(s: str) -> str:
     return s.strip("-")
 
 
+def copy_and_strip_exif(src: Path, dest_dir: Path) -> Path:
+    """Copy a file to a new location and strip its Exif tags using exiftool(1)."""
+    dest = dest_dir / src.name
+    shutil.copy(src, dest)
+
+    try:
+        sp.run(["exiftool", "-all=", "-quiet", str(dest)], check=True)
+    except (sp.CalledProcessError, FileNotFoundError) as e:
+        log_error(f"failed to strip tags from {str(src)!r}: {e}")
+        sys.exit(1)
+
+    return dest
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload files and print their URLs.")
     parser.add_argument(
@@ -103,6 +119,12 @@ def main():
         action="append",
         default=[],
         help="override one filename (use once per file)",
+    )
+    parser.add_argument(
+        "-s",
+        "--strip-exif",
+        action="store_true",
+        help="strip Exif metadata",
     )
     parser.add_argument(
         "-p",
@@ -135,6 +157,13 @@ def main():
     if not success:
         sys.exit(1)
 
+    files_to_upload = args.files
+    temp_dir = None
+    if args.strip_exif:
+        temp_dir = tempfile.TemporaryDirectory()
+        temp_path = Path(temp_dir.name)
+        files_to_upload = [copy_and_strip_exif(f, temp_path) for f in args.files]
+
     # Compose a batchfile for sftp.
     batch = []
     urls = []
@@ -144,7 +173,7 @@ def main():
     batch.append(f"mkdir {subdir_quoted}")
     batch.append(f"cd {subdir_quoted}")
 
-    for i, file_path in enumerate(args.files):
+    for i, file_path in enumerate(files_to_upload):
         file_path_quoted = shlex.quote(str(file_path))
 
         basename = args.filename[i] if i < len(args.filename) else slug(file_path.name)

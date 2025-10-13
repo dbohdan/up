@@ -28,6 +28,7 @@ Files uploaded simultaneously go in the same directory.
 
 - Python 3.11 or later for [tomllib](https://docs.python.org/3/library/tomllib.html)
 - sftp(1) (part of OpenSSH)
+- Optional: [ExifTool](https://exiftool.org/) for metadata removal
 - A remote machine with:
     - An SSH server
     - An HTTP server
@@ -72,7 +73,7 @@ base-url = "https://paste.example.com/"
 ## Usage
 
 ```none
-usage: up [-h] [-p <perms>] file [file ...]
+usage: up [-h] [-f <filename>] [-s] [-p <perms>] file [file ...]
 
 Upload files and print their URLs.
 
@@ -81,6 +82,9 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  -f <filename>, --filename <filename>
+                        override one filename (use once per file)
+  -s, --strip-exif      strip Exif metadata
   -p <perms>, --permissions <perms>
                         set file permissions ('0644' by default); skip chmod
                         if empty
