@@ -36,14 +36,23 @@ class Config:
         config_home = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
         config_file = Path(config_home) / "up" / "config.toml"
 
-        if not config_file.is_file():
+        try:
+            with config_file.open("rb") as f:
+                config = tomllib.load(f)
+        except FileNotFoundError:
             log_error(
-                "config file not found at " + shlex.quote(str(config_file)),
+                f"config file not found at {str(config_file)!r}",
             )
             sys.exit(1)
+        except PermissionError:
+            log_error(
+                f"permission denied reading config file at {str(config_file)!r}",
+            )
+            sys.exit(1)
+        except OSError as e:
+            log_error(f"cannot read config file at {str(config_file)!r}: {e}")
+            sys.exit(1)
 
-        with config_file.open("rb") as f:
-            config = tomllib.load(f)
         try:
             base_url = config["base-url"].rstrip("/")
             dest_dir = Path(config["dest-dir"])
