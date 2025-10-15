@@ -1,9 +1,9 @@
 #! /usr/bin/env python3
+# SPDX-FileCopyrightText: 2025 D. Bohdan
+# SPDX-License-Identifier: MIT
+#
 # Upload files to your server using SFTP and get their public URLs.
 # https://github.com/dbohdan/up
-#
-# Copyright (c) 2025 D. Bohdan
-# MIT License
 #
 # Requires Python 3.11 and sftp(1).
 
