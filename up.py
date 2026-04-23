@@ -180,7 +180,7 @@ def cli() -> argparse.Namespace:
         metavar="file",
         nargs="+",
         type=Path,
-        help="files to upload",
+        help="files to upload; use '-' to read one from stdin",
     )
     parser.add_argument(
         "-S",
@@ -223,6 +223,10 @@ def cli() -> argparse.Namespace:
         parser.error(
             f"invalid permissions: {args.permissions!r} (expected octal digits)",
         )
+
+    # Validate that stdin is requested at most once.
+    if sum(1 for f in args.files if str(f) == "-") > 1:
+        parser.error("'-' (stdin) may be used at most once")
 
     return args
 
@@ -304,10 +308,19 @@ def main() -> None:
     except ConfigError as e:
         fail(str(e))
 
-    # Validate all files first by trying to open them.
+    uses_stdin = any(str(f) == "-" for f in args.files)
+    if uses_stdin and sys.stdin.isatty():
+        fail(
+            "refusing to read upload data from a terminal; "
+            "pipe into '-' or redirect a file",
+        )
+
+    # Validate all files (except stdin) first by trying to open them.
     success = True
 
     for file_path in args.files:
+        if str(file_path) == "-":
+            continue
         try:
             with file_path.open("rb"):
                 pass
@@ -319,11 +332,22 @@ def main() -> None:
         sys.exit(1)
 
     with contextlib.ExitStack() as stack:
-        files_to_upload = args.files
+        files_to_upload = list(args.files)
+
+        if uses_stdin:
+            stdin_dir = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+            stdin_path = stdin_dir / "stdin.txt"
+
+            with stdin_path.open("wb") as f:
+                shutil.copyfileobj(sys.stdin.buffer, f)
+
+            files_to_upload = [
+                stdin_path if str(f) == "-" else f for f in files_to_upload
+            ]
 
         if args.strip_exif:
             temp_path = Path(stack.enter_context(tempfile.TemporaryDirectory()))
-            files_to_upload = strip_exif(args.files, temp_path)
+            files_to_upload = strip_exif(files_to_upload, temp_path)
 
         # Compose a batchfile for sftp.
         subdir = config.dest_dir / random_name()
