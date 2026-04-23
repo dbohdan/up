@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# SPDX-FileCopyrightText: 2025 D. Bohdan
+# SPDX-FileCopyrightText: 2025-2026 D. Bohdan
 # SPDX-License-Identifier: MIT
 #
 # Upload files to your server using SFTP and get their public URLs.
@@ -124,7 +124,8 @@ def cli() -> argparse.Namespace:
     parser.add_argument(
         "-S",
         "--no-slug",
-        action="store_true",
+        action="store_false",
+        dest="slug",
         help="do not slugify filenames",
     )
     parser.add_argument(
@@ -159,6 +160,45 @@ def cli() -> argparse.Namespace:
     return args
 
 
+def build_sftp_batch(
+    files_to_upload: list[Path],
+    /,
+    *,
+    base_url: str,
+    filename_overrides: list[str],
+    permissions: str,
+    slugify: bool,
+    subdir: Path,
+) -> tuple[list[str], list[str]]:
+    """Build an sftp batchfile and the list of resulting URLs."""
+    batch = []
+    urls = []
+    subdir_quoted = shlex.quote(str(subdir))
+
+    batch.append(f"mkdir {subdir_quoted}")
+    batch.append(f"cd {subdir_quoted}")
+
+    for i, file_path in enumerate(files_to_upload):
+        file_path_quoted = shlex.quote(str(file_path))
+
+        if i < len(filename_overrides):
+            basename = filename_overrides[i]
+        elif slugify:
+            basename = slug(file_path.name)
+        else:
+            basename = file_path.name
+        basename_quoted = shlex.quote(basename)
+
+        batch.append(f"put {file_path_quoted} {basename_quoted}")
+        if permissions:
+            batch.append(f"chmod {permissions} {basename_quoted}")
+
+        basename_url = urllib.parse.quote(basename, safe="")
+        urls.append(f"{base_url}/{subdir.name}/{basename_url}")
+
+    return batch, urls
+
+
 def main():
     args = cli()
     config = Config.load_config()
@@ -185,31 +225,15 @@ def main():
         files_to_upload = [copy_and_strip_exif(f, temp_path) for f in args.files]
 
     # Compose a batchfile for sftp.
-    batch = []
-    urls = []
     subdir = config.dest_dir / random_name()
-    subdir_quoted = shlex.quote(str(subdir))
-
-    batch.append(f"mkdir {subdir_quoted}")
-    batch.append(f"cd {subdir_quoted}")
-
-    for i, file_path in enumerate(files_to_upload):
-        file_path_quoted = shlex.quote(str(file_path))
-
-        if i < len(args.filename):
-            basename = args.filename[i]
-        elif args.no_slug:
-            basename = file_path.name
-        else:
-            basename = slug(file_path.name)
-        basename_quoted = shlex.quote(basename)
-
-        batch.append(f"put {file_path_quoted} {basename_quoted}")
-        if args.permissions:
-            batch.append(f"chmod {args.permissions} {basename_quoted}")
-
-        basename_url = urllib.parse.quote(basename, safe="")
-        urls.append(f"{config.base_url}/{subdir.name}/{basename_url}")
+    batch, urls = build_sftp_batch(
+        files_to_upload,
+        base_url=config.base_url,
+        filename_overrides=args.filename,
+        permissions=args.permissions,
+        slugify=args.slug,
+        subdir=subdir,
+    )
 
     # Run sftp with the batchfile read from stdin.
     sftp_result = sp.run(
