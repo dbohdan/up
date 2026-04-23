@@ -183,11 +183,11 @@ def cli() -> argparse.Namespace:
         help="files to upload; use '-' to read one from stdin",
     )
     parser.add_argument(
-        "-S",
-        "--no-slug",
-        action="store_false",
-        dest="slug",
-        help="do not slugify filenames",
+        "-d",
+        "--subdir",
+        metavar="<name>",
+        default=None,
+        help="upload to a fixed subdirectory name instead of a random one",
     )
     parser.add_argument(
         "-f",
@@ -198,11 +198,24 @@ def cli() -> argparse.Namespace:
         help="override filename, skipping slugification (one use is one file in order)",
     )
     parser.add_argument(
+        "-o",
+        "--overwrite",
+        action="store_true",
+        help="allow --subdir to already exist (same-named files may be overwritten)",
+    )
+    parser.add_argument(
         "-p",
         "--permissions",
         metavar="<perms>",
         default="0644",
         help="set file permissions (%(default)r by default); skip chmod if empty",
+    )
+    parser.add_argument(
+        "-S",
+        "--no-slug",
+        action="store_false",
+        dest="slug",
+        help="do not slugify filenames",
     )
     parser.add_argument(
         "-s",
@@ -211,24 +224,12 @@ def cli() -> argparse.Namespace:
         help="strip Exif metadata with ExifTool",
     )
     parser.add_argument(
-        "-d",
-        "--subdir",
-        metavar="<name>",
-        default=None,
-        help="upload to a fixed subdirectory name instead of a random one",
-    )
-    parser.add_argument(
-        "-o",
-        "--overwrite",
-        action="store_true",
-        help="allow --subdir to already exist (same-named files may be overwritten)",
-    )
-    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
         help="pass -v to sftp(1) for connection debugging",
     )
+
     args = parser.parse_args()
 
     # Validate the number of names.
