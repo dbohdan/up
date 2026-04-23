@@ -95,7 +95,8 @@ def random_name() -> str:
 def slug(s: str) -> str:
     s = s.lower()
     s = re.sub(r"[^A-Za-z0-9._~+-]+", "-", s)
-    return s.strip("-")
+
+    return s.strip("-") or s
 
 
 def copy_and_strip_exif(src: Path, dest_dir: Path) -> Path:
