@@ -210,6 +210,19 @@ def cli() -> argparse.Namespace:
         action="store_true",
         help="strip Exif metadata with ExifTool",
     )
+    parser.add_argument(
+        "-d",
+        "--subdir",
+        metavar="<name>",
+        default=None,
+        help="upload to a fixed subdirectory name instead of a random one",
+    )
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        action="store_true",
+        help="allow --subdir to already exist (same-named files may be overwritten)",
+    )
     args = parser.parse_args()
 
     # Validate the number of names.
@@ -228,6 +241,15 @@ def cli() -> argparse.Namespace:
     if sum(1 for f in args.files if str(f) == "-") > 1:
         parser.error("'-' (stdin) may be used at most once")
 
+    # Validate the "--subdir" and "--overwrite" combination.
+    if args.overwrite and args.subdir is None:
+        parser.error("--overwrite requires --subdir")
+
+    if args.subdir is not None and (
+        args.subdir in ("", ".", "..") or re.search(r"[\x00-\x1f/\\]", args.subdir)
+    ):
+        parser.error(f"invalid subdirectory name: {args.subdir!r}")
+
     return args
 
 
@@ -235,6 +257,7 @@ def build_sftp_batch(
     files_to_upload: list[Path],
     /,
     *,
+    allow_existing: bool,
     base_url: str,
     filename_overrides: list[str],
     permissions: str,
@@ -247,8 +270,12 @@ def build_sftp_batch(
     basenames: list[str] = []
     seen: set[str] = set()
     subdir_quoted = shlex.quote(str(subdir))
+    subdir_url = urllib.parse.quote(subdir.name, safe="")
 
-    batch.append(f"mkdir {subdir_quoted}")
+    # The "-" prefix makes sftp ignore errors from this command, so reusing an
+    # existing subdirectory does not abort the batch.
+    mkdir_op = "-mkdir" if allow_existing else "mkdir"
+    batch.append(f"{mkdir_op} {subdir_quoted}")
     batch.append(f"cd {subdir_quoted}")
 
     for i, file_path in enumerate(files_to_upload):
@@ -279,7 +306,7 @@ def build_sftp_batch(
             batch.append(f"chmod {permissions} {basename_quoted}")
 
         basename_url = urllib.parse.quote(basename, safe="")
-        urls.append(f"{base_url}/{subdir.name}/{basename_url}")
+        urls.append(f"{base_url}/{subdir_url}/{basename_url}")
 
     return UploadPlan(
         subdir=subdir,
@@ -350,11 +377,13 @@ def main() -> None:
             files_to_upload = strip_exif(files_to_upload, temp_path)
 
         # Compose a batchfile for sftp.
-        subdir = config.dest_dir / random_name()
+        subdir_name = args.subdir if args.subdir is not None else random_name()
+        subdir = config.dest_dir / subdir_name
 
         try:
             plan = build_sftp_batch(
                 files_to_upload,
+                allow_existing=args.overwrite,
                 base_url=config.base_url,
                 filename_overrides=args.filename,
                 permissions=args.permissions,
