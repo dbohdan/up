@@ -73,33 +73,41 @@ base-url = "https://paste.example.com/"
 ## Usage
 
 ```none
-usage: up [-h] [-S] [-f <filename>] [-p <perms>] [-s] file [file ...]
+usage: up.py [-h] [-d <name>] [-f <filename>] [-o] [-p <perms>] [-S] [-s] [-v]
+             file [file ...]
 
 Upload files and print their URLs.
 
 positional arguments:
-  file                  files to upload
+  file                  files to upload; use '-' to read one from stdin
 
 options:
   -h, --help            show this help message and exit
-  -S, --no-slug         do not slugify filenames
+  -d <name>, --subdir <name>
+                        upload to a fixed subdirectory name instead of a
+                        random one
   -f <filename>, --filename <filename>
-                        override filename (one use is one file in order)
+                        override filename, skipping slugification (one use is
+                        one file in order)
+  -o, --overwrite       allow --subdir to already exist (same-named files may
+                        be overwritten)
   -p <perms>, --permissions <perms>
                         set file permissions ('0644' by default); skip chmod
                         if empty
+  -S, --no-slug         do not slugify filenames
   -s, --strip-exif      strip Exif metadata with ExifTool
+  -v, --verbose         pass -v to sftp(1) for connection debugging
 ```
 
-### Filename slugification
+### Filename processing
 
-By default, `up` converts filenames to URL-friendly [slugs](https://en.wikipedia.org/wiki/Clean_URL#Slug):
-
-- Converts to lowercase
-- Replaces non-alphanumeric characters (except `.`, `_`, `~`, `+`, `-`) with hyphens
-- Trims leading and trailing hyphens
+By default, `up` converts filenames to URL-friendly [slugs](https://en.wikipedia.org/wiki/Clean_URL#Slug).
+It converts the filename to lowercase, replaces non-alphanumeric characters (except `.`, `_`, `~`, `+`, `-`) with hyphens, and trims leading and trailing hyphens.
 
 Use `-S`/`--no-slug` to disable this behavior and preserve original filenames or `-f`/`--filename` to use custom filenames.
+
+If two uploads would resolve to the same basename (whether from duplicate paths, slug collisions, or repeated `-f` overrides), `up` exits with an error instead of overwriting files on the server.
+Use `-f` to disambiguate.
 
 ### Exif metadata removal
 
