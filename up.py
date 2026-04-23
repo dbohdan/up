@@ -223,6 +223,12 @@ def cli() -> argparse.Namespace:
         action="store_true",
         help="allow --subdir to already exist (same-named files may be overwritten)",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="pass -v to sftp(1) for connection debugging",
+    )
     args = parser.parse_args()
 
     # Validate the number of names.
@@ -394,8 +400,9 @@ def main() -> None:
             fail(str(e))
 
         # Run sftp with the batchfile read from stdin.
+        verbose_flag = ["-v"] if args.verbose else []
         sftp_result = sp.run(
-            ["sftp", "-b", "-", "-p", config.target_host],
+            ["sftp", *verbose_flag, "-b", "-", "-p", config.target_host],
             input="\n".join(plan.batch).encode(),
             check=False,
         )
@@ -405,11 +412,11 @@ def main() -> None:
             cleanup = build_cleanup_batch(plan)
 
             sp.run(
-                ["sftp", "-b", "-", config.target_host],
+                ["sftp", *verbose_flag, "-b", "-", config.target_host],
                 input="\n".join(cleanup).encode(),
                 check=False,
                 stdout=sp.DEVNULL,
-                stderr=sp.DEVNULL,
+                stderr=None if args.verbose else sp.DEVNULL,
             )
 
             fail(f"sftp failed with exit code {sftp_result.returncode}")
